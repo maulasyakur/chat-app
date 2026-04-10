@@ -17,6 +17,48 @@ export const Route = createFileRoute("/chat/")({
   },
 });
 
+async function fetchMessages(
+  setMessages: (messages: Message[]) => void,
+  userId: string | undefined,
+) {
+  const value = await pb
+    .collection("chat")
+    .getFullList({ sort: "sentAt", expand: "user" });
+
+  const valueMapped: Message[] = value.map((val) => ({
+    message: val.message,
+    name: val.expand?.user.name ?? "Unknown",
+    isSelf: val.expand?.user.id === userId,
+    sentAt: val.sentAt,
+  }));
+
+  setMessages(valueMapped);
+}
+
+async function subscribe(
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
+  userId: string | undefined,
+) {
+  await pb.collection("chat").subscribe("*", async (e) => {
+    if (e.action === "create") {
+      const user = await pb.collection("users").getOne(e.record.user);
+      const record: Message = {
+        message: e.record.message,
+        name: user.name ?? "Unknown",
+        isSelf: user.id === userId,
+        sentAt: e.record.sentAt,
+      };
+      setMessages((prev) => {
+        if (
+          prev.some((m) => m.sentAt === record.sentAt && m.name === record.name)
+        )
+          return prev;
+        return [...prev, record];
+      });
+    }
+  });
+}
+
 function RouteComponent() {
   const { userName, logout, userId } = Route.useLoaderData();
   const navigate = useNavigate();
@@ -24,36 +66,11 @@ function RouteComponent() {
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {
-    // fetch initial
-    pb.collection("chat")
-      .getFullList({ sort: "sentAt", expand: "user" })
-      .then((value) => {
-        const valueMapped = value.map((val) => {
-          return {
-            message: val.message,
-            name: val.expand?.user.name,
-            isSelf: val.expand?.user.user === userId,
-            sentAt: val.sentAt,
-          };
-        });
-        setMessages(valueMapped);
-      });
-
-    // pb.collection("chat").subscribe("*", async (e) => {
-    //   if (e.action === "create") {
-    //     const user = await pb.collection("users").getOne(e.record.user);
-    //     const record = { ...e.record, expand: { user } };
-    //     setMessages((prev) => {
-    //       if (!prev) return;
-    //       if (prev.some((m) => m.id === record.id)) return prev;
-    //       return [...prev, record];
-    //     });
-    //   }
-    // });
-
-    // return () => {
-    //   pb.collection("chat").unsubscribe("*");
-    // };
+    fetchMessages(setMessages, userId);
+    subscribe(setMessages, userId);
+    return () => {
+      pb.collection("chat").unsubscribe("*");
+    };
   }, [userId]);
 
   async function handleSubmit() {
@@ -62,7 +79,9 @@ function RouteComponent() {
       message: input,
       user: userId,
     };
+
     await pb.collection("chat").create(data);
+    setInput("");
   }
 
   return (
