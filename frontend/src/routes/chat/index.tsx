@@ -2,6 +2,7 @@ import type { Message } from "@/components/chat-bubble";
 import { Button } from "@/components/ui/button";
 import MessageInput from "@/components/ui/message-input";
 import MessageList from "@/components/ui/message-list";
+import { Spinner } from "@/components/ui/spinner";
 import { pb } from "@/lib/pocketbase";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -11,14 +12,15 @@ export const Route = createFileRoute("/chat/")({
   loader: async ({ context }) => {
     return {
       userName: context.auth.user?.name,
-      logout: context.auth.logout,
       userId: context.auth.user?.id,
+      logout: context.auth.logout,
     };
   },
 });
 
 async function fetchMessages(
   setMessages: (messages: Message[]) => void,
+  setLoading: React.Dispatch<React.SetStateAction<boolean>>,
   userId: string | undefined,
 ) {
   const value = await pb
@@ -32,6 +34,7 @@ async function fetchMessages(
     sentAt: val.sentAt,
   }));
 
+  setLoading(false);
   setMessages(valueMapped);
 }
 
@@ -60,13 +63,14 @@ async function subscribe(
 }
 
 function RouteComponent() {
-  const { userName, logout, userId } = Route.useLoaderData();
+  const { userName, userId, logout } = Route.useLoaderData();
   const navigate = useNavigate();
   const [input, setInput] = useState<string>("");
+  const [isLoading, setLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {
-    fetchMessages(setMessages, userId);
+    fetchMessages(setMessages, setLoading, userId);
     subscribe(setMessages, userId);
     return () => {
       pb.collection("chat").unsubscribe("*");
@@ -85,7 +89,7 @@ function RouteComponent() {
   }
 
   return (
-    <div className="max-w-sm h-dvh mx-auto border-2 flex flex-col">
+    <div className="max-w-md h-dvh mx-auto border-2 flex flex-col">
       <div className="border-b-2 p-2 flex items-center justify-between">
         <p>Hello, {userName}!</p>
         <Button
@@ -98,7 +102,11 @@ function RouteComponent() {
         </Button>
       </div>
       <div className="p-2 flex-1 flex flex-col justify-between overflow-hidden">
-        <MessageList messages={messages} />
+        {isLoading ? (
+          <Spinner className="self-center my-auto" />
+        ) : (
+          <MessageList messages={messages} />
+        )}
         <MessageInput
           value={input}
           onChange={setInput}

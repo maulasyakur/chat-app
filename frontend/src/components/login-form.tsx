@@ -46,7 +46,6 @@ export function LoginForm({
         await pb
           .collection("users")
           .authWithPassword(value.email, value.password);
-        toast.success("Login successfull!");
         navigate({ to: "/" });
       } catch (error) {
         console.error(error);
