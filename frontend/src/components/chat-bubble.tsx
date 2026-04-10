@@ -2,37 +2,30 @@ import { cn } from "@/lib/utils";
 
 export interface Message {
   message: string;
-  senderName: string;
+  name: string;
   isSelf: boolean;
-  sentAt: Date;
+  sentAt: string;
 }
 
-function formatMessageDate(date: Date): string {
+function formatMessageDate(isoString: string): string {
+  const date = new Date(isoString);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-
-  const messageDate = new Date(
+  const messageDay = new Date(
     date.getFullYear(),
     date.getMonth(),
     date.getDate(),
   );
-  const diffDays = Math.floor(
-    (today.getTime() - messageDate.getTime()) / (1000 * 60 * 60 * 24),
-  );
 
-  if (messageDate.getTime() === today.getTime()) {
-    // Today: show time
+  if (messageDay.getTime() === today.getTime()) {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } else if (messageDate.getTime() === yesterday.getTime()) {
-    // Yesterday
+  } else if (messageDay.getTime() === yesterday.getTime()) {
     return "Yesterday";
-  } else if (diffDays < 7) {
-    // Within a week: show day name
+  } else if (today.getTime() - messageDay.getTime() < 7 * 24 * 60 * 60 * 1000) {
     return date.toLocaleDateString([], { weekday: "long" });
   } else {
-    // Older: show full date
     return date.toLocaleDateString([], {
       month: "short",
       day: "numeric",
@@ -57,9 +50,7 @@ export default function ChatBubble({ message }: { message: Message }) {
           message.isSelf ? "items-end" : "items-start",
         )}
       >
-        <p className="text-sm text-muted-foreground px-1">
-          {message.senderName}
-        </p>
+        <p className="text-sm text-muted-foreground px-1">{message.name}</p>
         <div
           className={cn(
             message.isSelf ? "flex-row-reverse" : "flex-row",

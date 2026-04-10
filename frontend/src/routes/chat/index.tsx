@@ -3,95 +3,67 @@ import { Button } from "@/components/ui/button";
 import MessageInput from "@/components/ui/message-input";
 import MessageList from "@/components/ui/message-list";
 import { pb } from "@/lib/pocketbase";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/chat/")({
   component: RouteComponent,
   loader: async ({ context }) => {
-    context.queryClient.ensureQueryData(chatQueryOptions);
-    return { userName: context.auth.user?.name, logout: context.auth.logout };
+    return {
+      userName: context.auth.user?.name,
+      logout: context.auth.logout,
+      userId: context.auth.user?.id,
+    };
   },
 });
-
-const chatQueryOptions = queryOptions({
-  queryKey: ["chat-messages"],
-  queryFn: async () => {
-    const resultList = await pb
-      .collection("chat")
-      .getFullList({ expand: "user" });
-    return resultList;
-  },
-});
-
-const user = "Maula";
-const otherMessages: Message[] = [
-  {
-    isSelf: false,
-    message: "fasdfasf",
-    senderName: "Dita",
-    sentAt: new Date(),
-  },
-  {
-    isSelf: false,
-    message: "fasdfasf",
-    senderName: "Dita",
-    sentAt: new Date(),
-  },
-  {
-    isSelf: false,
-    message: "fasdfasf",
-    senderName: "Dita",
-    sentAt: new Date(),
-  },
-  {
-    isSelf: false,
-    message: "fasdfasf",
-    senderName: "Dita",
-    sentAt: new Date(),
-  },
-  {
-    isSelf: false,
-    message: "fasdfasf",
-    senderName: "Dita",
-    sentAt: new Date(),
-  },
-  {
-    isSelf: false,
-    message: "fasdfasf",
-    senderName: "Dita",
-    sentAt: new Date(),
-  },
-  {
-    isSelf: false,
-    message: "fasdfasf",
-    senderName: "Dita",
-    sentAt: new Date(),
-  },
-];
 
 function RouteComponent() {
-  const { userName, logout } = Route.useLoaderData();
+  const { userName, logout, userId } = Route.useLoaderData();
   const navigate = useNavigate();
   const [input, setInput] = useState<string>("");
-  const [messages, setMessages] = useState<Message[]>(otherMessages);
-  const { data: chatMessages } = useSuspenseQuery(chatQueryOptions);
+  const [messages, setMessages] = useState<Message[]>([]);
 
-  function handleSubmit() {
+  useEffect(() => {
+    // fetch initial
+    pb.collection("chat")
+      .getFullList({ sort: "sentAt", expand: "user" })
+      .then((value) => {
+        const valueMapped = value.map((val) => {
+          return {
+            message: val.message,
+            name: val.expand?.user.name,
+            isSelf: val.expand?.user.user === userId,
+            sentAt: val.sentAt,
+          };
+        });
+        setMessages(valueMapped);
+      });
+
+    // pb.collection("chat").subscribe("*", async (e) => {
+    //   if (e.action === "create") {
+    //     const user = await pb.collection("users").getOne(e.record.user);
+    //     const record = { ...e.record, expand: { user } };
+    //     setMessages((prev) => {
+    //       if (!prev) return;
+    //       if (prev.some((m) => m.id === record.id)) return prev;
+    //       return [...prev, record];
+    //     });
+    //   }
+    // });
+
+    // return () => {
+    //   pb.collection("chat").unsubscribe("*");
+    // };
+  }, [userId]);
+
+  async function handleSubmit() {
     if (!input.trim()) return;
-    const message: Message = {
+    const data = {
       message: input,
-      isSelf: true,
-      senderName: user,
-      sentAt: new Date(),
+      user: userId,
     };
-    setMessages((prev) => [...prev, message]);
-    setInput("");
+    await pb.collection("chat").create(data);
   }
-
-  console.log(chatMessages);
-  console.log(chatMessages[0].expand);
 
   return (
     <div className="max-w-sm h-dvh mx-auto border-2 flex flex-col">
